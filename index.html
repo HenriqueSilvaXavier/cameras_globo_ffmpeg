@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="fake-csrf-token-123456">
+  <title>Monitoramento de Trânsito</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      background-color: #1e1e2f;
+      color: white;
+      padding: 10px 20px;
+    }
+
+    .logo {
+      height: 50px;
+      margin-right: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin: 0;
+    }
+
+    .content {
+      display: flex;
+      flex-direction: row;
+      height: calc(100vh - 80px);
+    }
+
+    .main-camera {
+      flex: 3;
+      padding: 20px;
+    }
+
+    .main-camera h2 {
+      margin-bottom: 10px;
+    }
+
+    .main-camera video {
+      width: 100%;
+      height: 80vh;
+      background: black;
+      border-radius: 8px;
+    }
+
+    .side-cameras {
+      flex: 1;
+      background-color: #eee;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .side-cameras h3 {
+      margin-bottom: 15px;
+    }
+
+    .side-cameras ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .side-cameras li {
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .side-cameras li:hover {
+      transform: scale(1.05);
+    }
+
+    .side-cameras video,
+    .side-cameras img {
+      width: 100%;
+      border-radius: 5px;
+    }
+
+    .side-cameras p {
+      text-align: center;
+      margin-top: 5px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <header class="top-bar">
+    <img src="logo_globo.png" alt="Logotipo da Empresa" class="logo">
+    <h1>Monitoramento de Trânsito</h1>
+  </header>
+
+  <main class="content">
+    <div class="main-camera">
+      <h2 id="titulo">Câmera Principal</h2>
+      <video id="videoPrincipal" controls autoplay muted>
+        <source id="fontePrincipal" src="rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=4&amp;subtype=0" type="application/x-rtsp">
+        
+      </video>
+    </div>
+
+    <aside class="side-cameras">
+      <h3>Outras Câmeras</h3>
+      <ul id="listaCameras">
+        <!-- Lista de câmeras será preenchida via JavaScript -->
+      </ul>
+    </aside>
+  </main>
+  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+
+  <script>
+    let recognition;
+    let player;
+
+    const cameras = [
+      { nome: "BOA VIAGEM", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=1&amp;subtype=0", nomes_alternativos: ["Boa Viagem"] },
+      { nome: "GUARARAPES", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=2&amp;subtype=0", nomes_alternativos: ["Guararapes"] },
+      { nome: "RUA DA AURORA", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=3&amp;subtype=0", nomes_alternativos: ["Rua da Aurora"] },
+      { nome: "DERBY", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=4&amp;subtype=0", nomes_alternativos: ["Derby"] },
+      { nome: "AV. CONDE DA BOA VISTA", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=5&amp;subtype=0", nomes_alternativos: ["Conde da Boa Vista", "Avenida Conde da Boa Vista"] },
+      { nome: "BR-101", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=6&amp;subtype=0", nomes_alternativos: ["BR-101", "BR 101", "BR101"] },
+      { nome: "PE-15", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=7&amp;subtype=0", nomes_alternativos: ["PE-15", "PE 15", "PE15"] },
+      { nome: "TORRE AURORA", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=8&amp;subtype=0", nomes_alternativos: ["Torre Aurora"] },
+      { nome: "CARUARU", url: "rtsp://Porto:Porto@9000@168.90.225.117:554/cam/realmonitor?channel=9&amp;subtype=0", nomes_alternativos: ["Caruaru"] },
+    ];
+
+    function iniciarCapturaDeVoz() {
+      if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+        console.warn("Reconhecimento de voz não suportado.");
+        return;
+      }
+
+      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = 'pt-BR';
+      recognition.interimResults = true;
+      recognition.continuous = true;
+
+      recognition.onresult = (event) => {
+        const resultado = event.results[event.resultIndex];
+        const texto = resultado[0].transcript;
+        console.log("Reconhecido:", texto);
+        if (texto.trim()) detectarAudio(texto);
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Erro de reconhecimento:", event.error);
+      };
+      
+      recognition.onend = () => {
+        console.log("Reconhecimento finalizado. Reiniciando...");
+        recognition.start(); // Recomeça automaticamente
+      };
+      recognition.start();
+    }
+
+    function detectarAudio(texto) {
+      const textoNormalizado = texto.toLowerCase();
+      for (const camera of cameras) {
+        for (const alias of camera.nomes_alternativos) {
+          if (textoNormalizado.includes(alias.toLowerCase())) {
+            console.log("Match:", alias);
+            mudarCamera(camera.nome);
+            return;
+          }
+        }
+      }
+    }
+
+    function mudarCamera(nomeCamera) {
+      // Parar a captura de voz antes de mudar a câmera
+      if (recognition && recognition.stop) {
+        recognition.stop();
+      }
+
+      const camera = cameras.find(cam => cam.nome.toLowerCase() === nomeCamera.toLowerCase());
+      
+      if (camera) {
+        document.getElementById("fontePrincipal").src = camera.url;
+        document.getElementById("titulo").textContent = `Câmera Principal: ${camera.nome}`;
+        document.getElementById("videoPrincipal").load();
+      } else {
+        console.log("Câmera não encontrada");
+      }
+
+      // Reiniciar a captura de voz após mudar a câmera
+      iniciarCapturaDeVoz();
+    }
+
+    function renderizarListaCameras() {
+      const lista = document.getElementById("listaCameras");
+      cameras.forEach(camera => {
+        const item = document.createElement("li");
+        item.onclick = () => mudarCamera(camera.nome);
+        item.innerHTML = ` 
+          <div>
+            <p>${camera.nome}</p>
+            <img src="logo_globo.png" alt="Miniatura da câmera ${camera.nome}" onerror="this.src='logo_globo.png'">
+          </div>
+        `;
+        lista.appendChild(item);
+      });
+    }
+
+    window.onload = () => {
+      renderizarListaCameras();
+      iniciarCapturaDeVoz();
+    };
+    
+  </script>
+</body>
+</html>
